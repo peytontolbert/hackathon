@@ -1,0 +1,4 @@
+httpx
+litellm
+python-dotenv
+weave-python 
