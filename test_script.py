@@ -10,6 +10,7 @@ import httpx
 from litellm import completion
 import weave
 
+# Initialize Weave
 weave.init("wv_mcp")
 
 # Set up detailed logging
@@ -23,6 +24,7 @@ logger = logging.getLogger(__name__)
 MCP_SERVICE_URL = "https://mcpsearchtool.com/mcp"
 MODEL_NAME = "gpt-4o-mini"
 MCP_VERSION = "2024-11-05"  # Using the most recent stable version
+CONFIG_AGENT_URL = "http://localhost:1001"
 
 # Standard headers for MCP protocol
 MCP_HEADERS = {
@@ -36,7 +38,7 @@ class MCPClient:
         self.base_url = base_url
         self.session_id = None
         self.client = httpx.AsyncClient(timeout=30)
-    
+        
     async def initialize(self) -> bool:
         """Initialize connection with MCP server"""
         try:
@@ -205,6 +207,91 @@ class MCPClient:
         except Exception as e:
             logger.error(f"Error getting tool details: {e}")
             return None
+
+    async def _call_config_agent(self, method: str, params: Dict) -> Optional[Dict]:
+        """Helper method to call the config agent"""
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    CONFIG_AGENT_URL,
+                    json={
+                        "jsonrpc": "2.0",
+                        "id": str(uuid.uuid4()),
+                        "method": method,
+                        "params": params
+                    }
+                )
+                response.raise_for_status()
+                return response.json()
+        except Exception as e:
+            logger.error(f"Error calling config agent: {e}")
+            return None
+
+    async def add_mcp_tool(self, tool_id: str, server_name: str = None, debug: bool = False, transport: str = "http-only") -> Optional[Dict]:
+        """Add an MCP tool to Cursor configuration"""
+        if not self.session_id:
+            logger.error("No active session. Call initialize() first")
+            return None
+            
+        try:
+            headers = {
+                **MCP_HEADERS,
+                "Mcp-Session-Id": self.session_id
+            }
+            
+            # Prepare arguments
+            arguments = {
+                "tool_id": tool_id,
+                "transport": transport,
+                "debug": debug
+            }
+            if server_name:
+                arguments["server_name"] = server_name
+            
+            payload = {
+                "jsonrpc": "2.0",
+                "id": str(uuid.uuid4()),
+                "method": "tools/call",
+                "params": {
+                    "name": "add_mcp_tool",
+                    "arguments": arguments
+                }
+            }
+            
+            logger.debug(f"Sending add tool request: {payload}")
+            response = await self.client.post(
+                self.base_url,
+                json=payload,
+                headers=headers
+            )
+            response.raise_for_status()
+            data = response.json()
+            
+            if "error" in data:
+                logger.error(f"MCP error: {data['error']}")
+                return None
+                
+            if "result" in data:
+                logger.debug(f"Got add tool response: {data}")
+                
+                # Send the response to the config agent
+                config_response = await self._call_config_agent(
+                    "handle_mcp_tool_response",
+                    {"response_data": data}
+                )
+                
+                if config_response and config_response.get("success"):
+                    logger.info("Successfully updated mcp.json configuration")
+                else:
+                    logger.warning("Failed to update mcp.json configuration")
+                
+                return data
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error adding tool: {e}")
+            return None
     
     async def close(self):
         """Close the client connection"""
@@ -257,6 +344,10 @@ async def main():
                 print("0. Exit")
                 
                 choice = input("\nEnter tool number: ").strip()
+                if not choice:  # Handle empty input
+                    print("\nPlease enter a valid number")
+                    continue
+                    
                 if choice == "0":
                     break
                     
@@ -336,6 +427,47 @@ async def main():
                                     print("\nInvalid tool number")
                             except ValueError:
                                 print("\nPlease enter a valid number")
+                        elif selected_tool['name'] == 'add_mcp_tool':
+                            if not searched_tools:
+                                print("\nNo tools available. Please search for tools first.")
+                                continue
+                                
+                            print("\nSelect a tool to add:")
+                            for i, tool in enumerate(searched_tools, 1):
+                                print(f"{i}. {tool['name']} (ID: {tool['id']})")
+                            print("Or enter a custom tool ID")
+                            
+                            choice = input("\nEnter tool number or ID: ").strip()
+                            try:
+                                tool_index = int(choice) - 1
+                                if 0 <= tool_index < len(searched_tools):
+                                    tool_id = searched_tools[tool_index]['id']
+                                else:
+                                    print("\nInvalid tool number")
+                                    continue
+                            except ValueError:
+                                # If not a number, treat as direct tool ID
+                                tool_id = choice
+                            
+                            if not tool_id:
+                                print("\nTool ID cannot be empty.")
+                                continue
+                                
+                            server_name = input("Enter a server name for the tool (optional, press Enter to skip): ").strip() or None
+                            debug = input("Enable debug mode for the tool? (y/n, default: n): ").strip().lower() == 'y'
+                            transport = input("Select transport (press Enter for default 'http-only'): ").strip() or "http-only"
+                            
+                            response = await mcp_client.add_mcp_tool(tool_id, server_name, debug, transport)
+                            if response and 'result' in response:
+                                content = response['result']['content'][0]['text']
+                                result = json.loads(content)
+                                print("\nTool added successfully!")
+                                print("\nConfiguration details:")
+                                print(json.dumps(result, indent=2))
+                            else:
+                                print("\nFailed to add tool.")
+                                if response and 'error' in response:
+                                    print(f"Error: {response['error']}")
                         else:
                             print(f"\nSupport for {selected_tool['name']} not yet implemented")
                     else:
