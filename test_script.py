@@ -310,17 +310,25 @@ async def main():
                                     response = await mcp_client.get_tool_detail(tool_id)
                                     
                                     if response and 'result' in response:
-                                        tool = response['result']
+                                        content = response['result']['content'][0]['text']
+                                        tool = json.loads(content)
                                         print("\nTool Details:")
                                         print(f"Name: {tool['name']}")
                                         print(f"ID: {tool['id']}")
                                         if tool.get('description'):
                                             print(f"Description: {tool['description']}")
                                         if tool.get('endpoints'):
-                                            print(f"Endpoints: {', '.join(tool['endpoints'])}")
-                                        if tool.get('input_schema'):
-                                            print("\nInput Schema:")
-                                            print(json.dumps(tool['input_schema'], indent=2))
+                                            # The endpoints are stored as a JSON string, need to parse it
+                                            endpoints = json.loads(tool['endpoints'])
+                                            print(f"Endpoints: {', '.join(endpoints)}")
+                                        if tool.get('source'):
+                                            print(f"Source: {tool['source']}")
+                                        if tool.get('verified'):
+                                            print("Verified: Yes")
+                                        if tool.get('created_at'):
+                                            print(f"Created: {tool['created_at']}")
+                                        if tool.get('updated_at'):
+                                            print(f"Updated: {tool['updated_at']}")
                                         print("-" * 50)
                                     else:
                                         print("\nCouldn't fetch tool details")
