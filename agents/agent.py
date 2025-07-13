@@ -360,14 +360,52 @@ class MCPToolCrew:
                 )
             ]
             
-            # Create and run crew
+            # Capture intermediate steps during execution
+            step_logs = []
+            
+            def step_callback(step):
+                """Capture intermediate agent steps during execution"""
+                import datetime
+                step_logs.append({
+                    "step_type": type(step).__name__,
+                    "content": str(step),
+                    "timestamp": datetime.datetime.now().isoformat()
+                })
+                logger.info(f"Step captured: {type(step).__name__} - {step}")
+            
+            # Create and run crew with step callback
             crew = Crew(
                 agents=[self.researcher, self.evaluator, self.configurator],
                 tasks=tasks,
-                verbose=True
+                verbose=True,
+                step_callback=step_callback
             )
             
             result = crew.kickoff()
+            
+            # Capture individual task results AFTER crew execution
+            task_results = []
+            for i, task in enumerate(tasks):
+                # Access task output after crew.kickoff() completes
+                if hasattr(task, 'output') and task.output:
+                    task_result = {
+                        "task_id": i + 1,
+                        "agent": task.agent.role,
+                        "description": task.description,
+                        "expected_output": task.expected_output,
+                        "output": str(task.output.raw) if task.output else "No output captured",
+                        "status": "completed"
+                    }
+                else:
+                    task_result = {
+                        "task_id": i + 1,
+                        "agent": task.agent.role,
+                        "description": task.description,
+                        "expected_output": task.expected_output,
+                        "output": "Task output not available",
+                        "status": "failed"
+                    }
+                task_results.append(task_result)
             
             # Convert CrewOutput to string and parse as JSON
             result_str = str(result)
@@ -380,12 +418,14 @@ class MCPToolCrew:
                     "message": result_str
                 }
             
-            # Return standardized format
+            # Return standardized format with task results and step logs
             return {
                 "status": result_dict.get("status", "success"),
                 "tool_id": result_dict.get("tool_id"),
                 "config_updated": result_dict.get("config_updated", False),
                 "result": result_dict,
+                "task_results": task_results,  # Individual task results
+                "step_logs": step_logs,  # Intermediate step logs
                 "error": result_dict.get("error")
             }
             

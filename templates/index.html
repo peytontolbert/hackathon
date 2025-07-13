@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCP Tool Assistant</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .chat-container {
+            height: calc(100vh - 200px);
+        }
+        .task-list {
+            border-left: 2px solid #e5e7eb;
+            padding-left: 1rem;
+            margin: 1rem 0;
+        }
+        .task-item {
+            margin-bottom: 0.5rem;
+            position: relative;
+        }
+        .task-item::before {
+            content: '';
+            position: absolute;
+            left: -1.25rem;
+            top: 0.5rem;
+            width: 0.5rem;
+            height: 0.5rem;
+            background: #3b82f6;
+            border-radius: 50%;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto px-4 py-8">
+        <h1 class="text-3xl font-bold text-center mb-8">🛠️ MCP Tool Assistant</h1>
+        
+        <!-- Chat Container -->
+        <div class="bg-white rounded-lg shadow-lg p-6">
+            <div id="chat-history" class="chat-container overflow-y-auto mb-4">
+                <!-- Chat messages will be inserted here -->
+            </div>
+            
+            <!-- Input Form -->
+            <form id="chat-form" class="flex gap-2">
+                <input 
+                    type="text" 
+                    id="user-input" 
+                    class="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="What kind of tool are you looking for? Describe your needs..."
+                    required
+                >
+                <!-- Voice Input Button -->
+                <button 
+                    type="button"
+                    id="voice-button"
+                    class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors disabled:bg-gray-400"
+                    title="Click to speak"
+                >
+                    🎤
+                </button>
+                <button 
+                    type="submit"
+                    class="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                    Send
+                </button>
+            </form>
+        </div>
+
+        <!-- Help Sidebar -->
+        <div class="mt-8 bg-white rounded-lg shadow-lg p-6">
+            <h2 class="text-xl font-semibold mb-4">📖 Help</h2>
+            <div class="space-y-4">
+                <div>
+                    <h3 class="font-medium">How to use:</h3>
+                    <ul class="list-disc list-inside ml-4">
+                        <li>Enter your requirements in natural language</li>
+                        <li>The AI will analyze and find matching tools</li>
+                        <li>Review the suggestions and configuration</li>
+                    </ul>
+                </div>
+                <div>
+                    <h3 class="font-medium">Tips:</h3>
+                    <ul class="list-disc list-inside ml-4">
+                        <li>Be specific about your requirements</li>
+                        <li>Include any technical constraints</li>
+                        <li>Mention integration needs</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const chatHistory = document.getElementById('chat-history');
+        const chatForm = document.getElementById('chat-form');
+        const userInput = document.getElementById('user-input');
+        const voiceButton = document.getElementById('voice-button');
+
+        // Speech Recognition Setup
+        let recognition = null;
+        let isListening = false;
+
+        // Check if speech recognition is supported
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+            
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = 'en-US';
+            
+            recognition.onstart = function() {
+                isListening = true;
+                voiceButton.innerHTML = '🔴';
+                voiceButton.title = 'Listening... Click to stop';
+                voiceButton.classList.add('animate-pulse');
+            };
+            
+            recognition.onresult = function(event) {
+                const transcript = event.results[0][0].transcript;
+                userInput.value = transcript;
+                userInput.focus();
+            };
+            
+            recognition.onend = function() {
+                isListening = false;
+                voiceButton.innerHTML = '🎤';
+                voiceButton.title = 'Click to speak';
+                voiceButton.classList.remove('animate-pulse');
+            };
+            
+            recognition.onerror = function(event) {
+                console.error('Speech recognition error:', event.error);
+                isListening = false;
+                voiceButton.innerHTML = '🎤';
+                voiceButton.title = 'Click to speak';
+                voiceButton.classList.remove('animate-pulse');
+                
+                if (event.error === 'not-allowed') {
+                    alert('Microphone access denied. Please allow microphone access and try again.');
+                }
+            };
+        } else {
+            // Speech recognition not supported
+            voiceButton.disabled = true;
+            voiceButton.title = 'Speech recognition not supported in this browser';
+            voiceButton.classList.add('opacity-50');
+        }
+
+        // Voice button click handler
+        voiceButton.addEventListener('click', function() {
+            if (!recognition) return;
+            
+            if (isListening) {
+                recognition.stop();
+            } else {
+                recognition.start();
+            }
+        });
+
+        function appendMessage(message, isUser = false) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `mb-4 ${isUser ? 'text-right' : ''}`;
+            
+            if (isUser) {
+                messageDiv.innerHTML = `
+                    <div class="inline-block bg-blue-500 text-white rounded-lg px-4 py-2">
+                        <p class="font-medium">You</p>
+                        <p>${message}</p>
+                    </div>
+                `;
+            } else {
+                let content = `
+                    <div class="inline-block bg-gray-100 rounded-lg px-4 py-2 max-w-3xl">
+                        <p class="font-medium">🤖 Assistant</p>
+                `;
+                
+                if (message.success) {
+                    // Parse and extract key information
+                    let toolInfo = {
+                        name: message.tool_name,
+                        configured: message.setup_status,
+                        description: message.description
+                    };
+
+                    // Extract tool search results from task outputs
+                    let searchResults = [];
+                    let evaluationResult = null;
+                    let configResult = null;
+
+                    // Get config result from the main result if available
+                    if (message.agent_output) {
+                        try {
+                            const agentOutput = JSON.parse(message.agent_output);
+                            if (agentOutput.configuration_results) {
+                                configResult = agentOutput.configuration_results;
+                            }
+                        } catch (e) {
+                            console.log('Failed to parse agent output:', e);
+                        }
+                    }
+
+                    // Parse individual task results
+                    if (message.task_results && Array.isArray(message.task_results)) {
+                        message.task_results.forEach(task => {
+                            try {
+                                if (task && task.output && task.output !== "Task output not available") {
+                                    const output = JSON.parse(task.output);
+                                    
+                                    if (task.agent === 'Tool Researcher' && Array.isArray(output)) {
+                                        searchResults = output;
+                                    } else if (task.agent === 'Tool Evaluator' && output && output.tool_id) {
+                                        evaluationResult = output;
+                                    } else if (task.agent === 'Tool Configurator' && output && output.configuration_results) {
+                                        configResult = output.configuration_results;
+                                    }
+                                }
+                            } catch (e) {
+                                // If parsing fails, try to extract basic info
+                                console.log('Failed to parse task output for', task.agent, ':', e);
+                                
+                                if (task.agent === 'Tool Researcher') {
+                                    // Try to extract tool names from raw output
+                                    const toolMatches = task.output.match(/"name":\s*"([^"]+)"/g);
+                                    if (toolMatches) {
+                                        searchResults = toolMatches.map(match => {
+                                            const name = match.match(/"name":\s*"([^"]+)"/)[1];
+                                            return { name: name, description: 'Found tool' };
+                                        });
+                                    }
+                                }
+                            }
+                        });
+                    }
+
+                    content += `
+                        <div class="space-y-4">
+                            <!-- Success Header -->
+                            <div class="flex items-center gap-2 text-green-600">
+                                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                                </svg>
+                                <span class="font-medium">Tool Successfully Configured!</span>
+                            </div>
+
+                            <!-- Tool Information -->
+                            <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                                <h3 class="font-medium text-green-800 mb-2">📦 ${configResult && configResult.tool_name ? configResult.tool_name : (message.tool_name && message.tool_name !== 'null' ? message.tool_name : 'Tool Configured')}</h3>
+                                <div class="text-sm text-green-700 space-y-1">
+                                    <p><span class="font-medium">Status:</span> ${configResult && configResult.status ? configResult.status : 'Successfully configured'}</p>
+                                    <p><span class="font-medium">Configuration:</span> Added to MCP tools</p>
+                                    <p><span class="font-medium">Transport:</span> HTTP-only</p>
+                                </div>
+                            </div>
+
+                            <!-- Process Summary -->
+                            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                <h3 class="font-medium text-blue-800 mb-3">🔄 Process Summary</h3>
+                                <div class="space-y-3">
+                                    
+                                    <!-- Research Phase -->
+                                    <div class="flex items-start gap-3">
+                                        <div class="flex-shrink-0 w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
+                                            <span class="text-white text-xs font-bold">1</span>
+                                        </div>
+                                        <div class="flex-1">
+                                            <p class="font-medium text-blue-800">Tool Search</p>
+                                            <p class="text-sm text-blue-600">Found ${searchResults.length} matching tools</p>
+                                            ${searchResults.length > 0 ? `
+                                                <div class="mt-2 space-y-1">
+                                                    ${searchResults.slice(0, 3).map(tool => `
+                                                        <div class="text-xs bg-white p-2 rounded border">
+                                                            <span class="font-medium">${tool && tool.name ? tool.name : 'Found tool'}</span>
+                                                            ${tool && tool.description ? `<br><span class="text-gray-600">${tool.description}</span>` : ''}
+                                                        </div>
+                                                    `).join('')}
+                                                </div>
+                                            ` : ''}
+                                        </div>
+                                    </div>
+
+                                    <!-- Evaluation Phase -->
+                                    <div class="flex items-start gap-3">
+                                        <div class="flex-shrink-0 w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
+                                            <span class="text-white text-xs font-bold">2</span>
+                                        </div>
+                                        <div class="flex-1">
+                                            <p class="font-medium text-blue-800">Tool Evaluation</p>
+                                            ${evaluationResult && evaluationResult.evaluation_details ? `
+                                                <p class="text-sm text-blue-600">Selected: ${evaluationResult.evaluation_details.name || 'Selected tool'}</p>
+                                                <div class="text-xs bg-white p-2 rounded border mt-1">
+                                                    ${evaluationResult.evaluation_details.description || 'Best match for requirements'}
+                                                </div>
+                                            ` : '<p class="text-sm text-blue-600">Evaluated and selected best tool</p>'}
+                                        </div>
+                                    </div>
+
+                                    <!-- Configuration Phase -->
+                                    <div class="flex items-start gap-3">
+                                        <div class="flex-shrink-0 w-6 h-6 bg-green-600 rounded-full flex items-center justify-center">
+                                            <span class="text-white text-xs font-bold">3</span>
+                                        </div>
+                                        <div class="flex-1">
+                                            <p class="font-medium text-green-800">Configuration</p>
+                                            <p class="text-sm text-green-600">Tool added and ready to use</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Technical Details (Collapsible) -->
+                            <details class="bg-gray-50 border border-gray-200 rounded-lg">
+                                <summary class="p-3 cursor-pointer font-medium text-gray-700 hover:bg-gray-100">
+                                    🔧 Technical Details (Click to expand)
+                                </summary>
+                                <div class="p-3 border-t border-gray-200">
+                                    ${message.task_results ? message.task_results.map(task => `
+                                        <div class="mb-4 last:mb-0">
+                                            <div class="flex items-center gap-2 mb-2">
+                                                <span class="font-medium text-sm">${task.agent}</span>
+                                                <span class="text-xs px-2 py-1 rounded ${task.status === 'completed' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}">${task.status}</span>
+                                            </div>
+                                            <pre class="text-xs text-gray-600 bg-white p-2 rounded border overflow-x-auto">${task.output}</pre>
+                                        </div>
+                                    `).join('') : 'No technical details available'}
+                                </div>
+                            </details>
+                        </div>
+                    `;
+                    
+                    if (message.requirements_met.length > 0) {
+                        content += `
+                            <div class="mt-2">
+                                <p class="font-medium">Requirements Met:</p>
+                                <ul class="list-disc list-inside ml-4">
+                                    ${message.requirements_met.map(req => `<li>✓ ${req}</li>`).join('')}
+                                </ul>
+                            </div>
+                        `;
+                    }
+                    
+                    if (message.requirements_missing.length > 0) {
+                        content += `
+                            <div class="mt-2">
+                                <p class="font-medium">Requirements Not Met:</p>
+                                <ul class="list-disc list-inside ml-4 text-red-500">
+                                    ${message.requirements_missing.map(req => `<li>✗ ${req}</li>`).join('')}
+                                </ul>
+                            </div>
+                        `;
+                    }
+                    
+                    if (message.alternatives && message.alternatives.length > 0) {
+                        content += `
+                            <div class="mt-2">
+                                <p class="font-medium">Alternative Tools:</p>
+                                <ul class="list-disc list-inside ml-4">
+                                    ${message.alternatives.slice(0, 3).map(alt => 
+                                        `<li>${alt.name}: ${alt.match_score}% match</li>`
+                                    ).join('')}
+                                </ul>
+                            </div>
+                        `;
+                    }
+                } else {
+                    content += `
+                        <div class="space-y-4">
+                            <!-- Error Header -->
+                            <div class="flex items-center gap-2 text-red-600">
+                                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+                                </svg>
+                                <span class="font-medium">Unable to Configure Tool</span>
+                            </div>
+
+                            <!-- Error Message -->
+                            <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+                                <p class="text-red-800">${message.message}</p>
+                            </div>
+
+                            <!-- Technical Details (Collapsible) -->
+                            ${message.agent_output ? `
+                                <details class="bg-gray-50 border border-gray-200 rounded-lg">
+                                    <summary class="p-3 cursor-pointer font-medium text-gray-700 hover:bg-gray-100">
+                                        🔧 Error Details (Click to expand)
+                                    </summary>
+                                    <div class="p-3 border-t border-gray-200">
+                                        <pre class="text-xs text-red-600 bg-white p-2 rounded border overflow-x-auto">${message.agent_output}</pre>
+                                    </div>
+                                </details>
+                            ` : ''}
+                        </div>
+                    `;
+                }
+                
+                content += '</div>';
+                messageDiv.innerHTML = content;
+            }
+            
+            chatHistory.appendChild(messageDiv);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+
+        chatForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const message = userInput.value.trim();
+            if (!message) return;
+            
+            // Append user message
+            appendMessage(message, true);
+            userInput.value = '';
+            
+            try {
+                // Send request to backend
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ message }),
+                });
+                
+                const result = await response.json();
+                appendMessage(result);
+            } catch (error) {
+                appendMessage({ success: false, message: 'An error occurred while processing your request.' });
+            }
+        });
+    </script>
+</body>
+</html> 

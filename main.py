@@ -53,16 +53,26 @@ class MCPAssistant:
                 "message": "Invalid result format from crew"
             }
             
-        # Extract relevant information
+        # Extract task results and step logs (intermediate agent outputs)
+        task_results = result.get("task_results", [])
+        step_logs = result.get("step_logs", [])
+        
         formatted = {
-            "success": True,
-            "tool_name": result.get("tool_name", "Unknown Tool"),
-            "description": result.get("description", "No description available"),
-            "setup_status": result.get("setup_status", {}),
-            "requirements_met": result.get("matching_features", []),
-            "requirements_missing": result.get("missing_features", []),
-            "alternatives": result.get("alternative_tools", [])
+            "success": result.get("status") == "success",
+            "tool_name": result.get("tool_id", "Unknown Tool"),
+            "description": "Tool processed by AI agents",
+            "setup_status": result.get("config_updated", False),
+            "requirements_met": [],
+            "requirements_missing": [],
+            "alternatives": [],
+            "agent_output": str(result.get("result", "")),
+            "task_results": task_results,  # Individual task results from each agent
+            "step_logs": step_logs  # Intermediate step logs during execution
         }
+        
+        if not formatted["success"]:
+            formatted["message"] = result.get("error", "Unknown error occurred")
+            
         return formatted
 
 def display_menu():
