@@ -7,7 +7,6 @@ from typing import Optional, List, Dict
 import json
 
 import httpx
-from litellm import completion
 import weave
 
 # Initialize Weave

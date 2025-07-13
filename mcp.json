@@ -1,26 +1,5 @@
 {
-  "servers": {
-    "Browser rendering server \u00e2\u0086\u0097": {
-      "command": "npx",
-      "args": [
-        "mcp-remote",
-        "https://browser.mcp.cloudflare.com/sse",
-        "--transport",
-        "http-only"
-      ],
-      "env": {}
-    },
-    "AutoRAG server \u00e2\u0086\u0097": {
-      "command": "npx",
-      "args": [
-        "mcp-remote",
-        "https://autorag.mcp.cloudflare.com/sse",
-        "--transport",
-        "http-only"
-      ],
-      "env": {}
-    }
-  },
+  "servers": {},
   "version": "1.0.0",
   "description": "MCP tool configuration file"
 }
