@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from typing import Optional, Dict
-#import weave
+import weave  # Keep import for inference
 from agents.agent import MCPToolCrew
 import httpx
 
@@ -12,8 +12,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Initialize Weave tracing
-#weave.init("wv_mcp")
+# Initialize Weave tracing - temporarily disabled to prevent crew hanging
+# weave.init("wv_mcp")
 
 class MCPAssistant:
     """Main assistant class that coordinates between user and crew"""

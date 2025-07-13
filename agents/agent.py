@@ -201,16 +201,20 @@ class MCPToolCrew:
                 "Mcp-Session-Id": MCPToolCrew._mcp_client.session_id
             }
             
+            # Prepare arguments with required fields
+            arguments = {
+                "tool_id": tool_id,
+                "transport": "http-only",
+                "debug": False
+            }
+            
             payload = {
                 "jsonrpc": "2.0",
                 "id": str(uuid.uuid4()),
                 "method": "tools/call",
                 "params": {
                     "name": "add_mcp_tool",
-                    "arguments": {
-                        "tool_id": tool_id,
-                        "transport": "http-only"
-                    }
+                    "arguments": arguments
                 }
             }
             
@@ -226,12 +230,29 @@ class MCPToolCrew:
                 return f"Error: {data['error']}"
                 
             if "result" in data:
-                # Handle both direct result and content-wrapped result
+                # Extract content from result
                 if "content" in data["result"]:
                     content = data["result"]["content"][0]["text"]
                     result = json.loads(content)
                 else:
                     result = data["result"]
+                
+                # Call config agent to update mcp.json
+                config_response = httpx.post(
+                    "http://localhost:1001",
+                    json={
+                        "jsonrpc": "2.0",
+                        "id": str(uuid.uuid4()),
+                        "method": "handle_mcp_tool_response",
+                        "params": {"response_data": data}
+                    }
+                ).json()
+                
+                if config_response and config_response.get("success"):
+                    logger.info("Successfully updated mcp.json configuration")
+                else:
+                    logger.warning("Failed to update mcp.json configuration")
+                
                 return json.dumps(result, indent=2)
             
             return "Failed to add tool"
