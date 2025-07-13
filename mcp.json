@@ -1,4 +1,6 @@
 {
+  "version": "1.0.0",
+  "description": "MCP tool configuration file",
   "servers": {
     "robertheadley/chrome-debug-mcp": {
       "command": "npx",
@@ -8,36 +10,6 @@
         "http-only"
       ],
       "env": {}
-    },
-    "Browser rendering server \u00e2\u0086\u0097": {
-      "command": "npx",
-      "args": [
-        "mcp-remote",
-        "https://browser.mcp.cloudflare.com/sse",
-        "--transport",
-        "http-only"
-      ],
-      "env": {}
-    },
-    "non-dirty/imap-mcp": {
-      "command": "npx",
-      "args": [
-        "mcp-remote",
-        "--transport",
-        "http-only"
-      ],
-      "env": {}
-    },
-    "kacesensitive/playwright-mcp-demo": {
-      "command": "npx",
-      "args": [
-        "mcp-remote",
-        "--transport",
-        "http-only"
-      ],
-      "env": {}
     }
-  },
-  "version": "1.0.0",
-  "description": "MCP tool configuration file"
+  }
 }
