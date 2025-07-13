@@ -10,6 +10,16 @@
         "http-only"
       ],
       "env": {}
+    },
+    "Sentry": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "https://mcp.sentry.dev/sse",
+        "--transport",
+        "http-only"
+      ],
+      "env": {}
     }
   }
 }
