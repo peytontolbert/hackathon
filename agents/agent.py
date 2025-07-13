@@ -74,7 +74,12 @@ class MCPToolCrew:
     
     def __init__(self):
         # Initialize LLM
-        self.llm = LLM(model="gpt-4o-mini", temperature=0)
+        self.llm = LLM(
+            model="openai/meta-llama/Llama-4-Scout-17B-16E-Instruct",
+            api_base="https://api.inference.wandb.ai/v1",
+            api_key=os.getenv("WANDB_API_KEY"),
+            extra_headers={"OpenAI-Project": "peytontolbert-ai/mcp-search"}
+        )
         
         # Initialize MCP client as class variable
         if MCPToolCrew._mcp_client is None:
@@ -193,8 +198,19 @@ class MCPToolCrew:
     def add_mcp_tool(tool_id: str) -> str:
         """Add an MCP tool to configuration"""
         try:
+            # Handle case where input is a JSON string
+            if tool_id.startswith('"') and tool_id.endswith('"'):
+                try:
+                    parsed = json.loads(tool_id)
+                    tool_id = parsed["tool_id"]
+                except (json.JSONDecodeError, KeyError):
+                    pass
+
             if not MCPToolCrew._mcp_client or not MCPToolCrew._mcp_client.session_id:
-                return "Error: No active MCP session"
+                return json.dumps({
+                    "status": "failed",
+                    "error": "No active MCP session"
+                })
                 
             headers = {
                 **MCP_HEADERS,
@@ -227,7 +243,10 @@ class MCPToolCrew:
             data = response.json()
             
             if "error" in data:
-                return f"Error: {data['error']}"
+                return json.dumps({
+                    "status": "failed",
+                    "error": data["error"]
+                })
                 
             if "result" in data:
                 # Extract content from result
@@ -250,15 +269,32 @@ class MCPToolCrew:
                 
                 if config_response and config_response.get("success"):
                     logger.info("Successfully updated mcp.json configuration")
+                    return json.dumps({
+                        "status": "success",
+                        "tool_id": tool_id,
+                        "config_updated": True,
+                        "result": result
+                    })
                 else:
                     logger.warning("Failed to update mcp.json configuration")
-                
-                return json.dumps(result, indent=2)
+                    return json.dumps({
+                        "status": "partial_success",
+                        "tool_id": tool_id,
+                        "config_updated": False,
+                        "result": result
+                    })
             
-            return "Failed to add tool"
+            return json.dumps({
+                "status": "failed",
+                "error": "No result returned from server"
+            })
             
         except Exception as e:
-            return f"Tool addition failed: {str(e)}"
+            logger.error(f"Tool addition failed: {e}")
+            return json.dumps({
+                "status": "failed",
+                "error": str(e)
+            })
 
     def _create_researcher(self):
         return Agent(
@@ -332,11 +368,33 @@ class MCPToolCrew:
             )
             
             result = crew.kickoff()
-            return json.loads(result) if isinstance(result, str) else result
+            
+            # Convert CrewOutput to string and parse as JSON
+            result_str = str(result)
+            try:
+                result_dict = json.loads(result_str)
+            except json.JSONDecodeError:
+                # If not valid JSON, create a standard format
+                result_dict = {
+                    "status": "success",
+                    "message": result_str
+                }
+            
+            # Return standardized format
+            return {
+                "status": result_dict.get("status", "success"),
+                "tool_id": result_dict.get("tool_id"),
+                "config_updated": result_dict.get("config_updated", False),
+                "result": result_dict,
+                "error": result_dict.get("error")
+            }
             
         except Exception as e:
             logger.error(f"Task failed: {e}")
-            return {"error": str(e)}
+            return {
+                "status": "failed",
+                "error": str(e)
+            }
 
 def main():
     # Create crew instance

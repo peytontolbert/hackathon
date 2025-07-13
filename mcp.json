@@ -1,5 +1,15 @@
 {
-  "servers": {},
+  "servers": {
+    "robertheadley/chrome-debug-mcp": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "--transport",
+        "http-only"
+      ],
+      "env": {}
+    }
+  },
   "version": "1.0.0",
   "description": "MCP tool configuration file"
 }
